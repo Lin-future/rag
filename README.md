@@ -29,6 +29,7 @@ rag-lab/
 ├── .env                     # 存储API密钥和配置 (由用户创建)
 ├── .env.example             # .env文件的示例模板
 ├── data/                    # 存放知识库源文件 (例如: my_document.txt)
+├── external_models/         # 存放从Hugging Face下载的模型文件
 ├── vector_store/            # 存储FAISS索引文件
 ├── src/
 │   ├── __init__.py
@@ -39,8 +40,7 @@ rag-lab/
 │   ├── llm_interface.py     # 与LLM API交互的接口
 │   ├── rag_pipeline.py      # RAG核心逻辑，结合检索和生成
 │   └── main.py              # 项目入口，命令行交互界面
-├── notebooks/               # Jupyter Notebooks 用于实验和演示
-│   └── rag_demonstration.ipynb # 用于展示RAG效果的Notebook
+├── download_nltk.py         # 下载NLTK资源
 ├── requirements.txt         # 项目依赖
 └── README.md                # 本项目说明文档
 ```
@@ -137,6 +137,7 @@ python -m src.main --init-kb --force-recreate-kb
 ```bash
 python -m src.main --query "PostgreSQL 16中引入的哪个订阅参数可以防止双向逻辑复制中的无限循环，它可以取哪两个值？"
 ```
+能回答正确并给出参考文档。
 ```
 --- RAG System Answer ---
 <think>
@@ -174,16 +175,35 @@ python -m src.main --query "PostgreSQL 16中引入的哪个订阅参数可以防
 ```bash
 python -m src.main --query-llm-only "PostgreSQL 16中引入的哪个订阅参数可以防止双向逻辑复制中的无限循环，它可以取哪两个值？"
 ```
+即使是reasoning模型有思考过程，但还是回答错误。
 ```
-PostgreSQL 16 中引入的参数是 **`slot_name`**，用于指定逻辑复制槽的名称。该参数的作用是强制订阅使用特定的逻辑复制槽， 确保槽名称唯一，从而避免双向逻辑复制中的无限循环。其取值可以是任意有效的槽名称，但必须满足以下条件：
+--- LLM-Only Answer ---
+<think>
+嗯，用户问的是PostgreSQL 16中引入的哪个订阅参数可以防止双向逻辑复制中的无限循环，并且这个参数可以取哪两个值。我需要先回忆一下PostgreSQL 16的新特性，特别是关于逻辑复制和订阅的部分。
 
-1. **槽名称必须存在**（需通过 `CREATE slot` 创建）。
-2. **槽名称必须唯一**（同一数据库中槽名称不可重复）。
+首先，我记得逻辑复制订阅在PostgreSQL中是用来从主节点复制数据到从节点的，但有时候如果配置不当，可能会导致主从节点之间 互相发送变更，形成循环，导致数据不一致或者无限循环的问题。所以在PostgreSQL 16中应该引入了某个参数来解决这个问题。    
 
-因此，虽然槽名称的具体值可动态定义（如 `slot1`、`slot2` 等），但关键在于确保两个订阅不会互相引用同一槽名称。例如，若 订阅 A 使用槽 `slot_a`，订阅 B 使用槽 `slot_b`，则循环被避免。
+然后，我需要确认具体的参数名称。可能涉及到的是订阅的参数，比如*log replication*相关的设置。之前学过的内容中，有一个参数叫做*log rep心跳间隔*，或者类似的名字。不过更准确地说，应该是*log rep订阅的同步行为*相关的参数。或者是*log rep订阅 的同步参数*，比如*log rep sync*？
+
+不过根据我的记忆，PostgreSQL 16引入的参数是*log rep sync*，它控制逻辑复制订阅的同步行为。这个参数可以设置为两种值：* 同步*（synchronous）和*异步*（asynchronous）。当设置为同步时，主节点会等待订阅的从节点确认收到变更后再继续发送，这样 可以防止循环，但可能会影响性能。而异步模式则允许主节点继续发送变更，减少延迟，但需要依赖订阅的可靠性。
+
+不过需要确认这个参数的正确名称和值。可能我记错了参数的名字，比如是不是*log rep sync*还是*log rep syncron*？或者有没有其他名称？比如*log rep subscription*的某个参数？
+
+再查一下资料，PostgreSQL 16的文档中提到，新增了*log rep sync*参数，用于逻辑复制订阅。这个参数的值可以是synchronous或asynchronous。当设置为synchronous时，主节点会等待订阅确认收到变更，从而避免双向同步中的循环。而asynchronous则允许主节 点继续发送变更，但需要确保订阅能够及时处理，避免循环。
+
+所以正确的参数名称是*log rep sync*，取值是synchronous和asynchronous。用户的问题中提到的是“订阅参数”，所以应该就是这个参数。需要确保回答准确，参数名称和值正确无误。
+</think>
+PostgreSQL 16 中引入的订阅参数是 `log_rep_sync`，它用于控制逻辑复制订阅的同步行为。该参数可以取以下两个值：
+1. **synchronous**（同步）：主节点会等待订阅的从节点确认收到变更后再继续发送，防止双向逻辑复制中的无限循环。
+2. **asynchronous**（异步）：主节点不等待确认即可继续发送变更，适用于对延迟不敏感的场景，但需依赖从节点的可靠性以避免循环。
+
+通过合理配置此参数，可有效避免主从节点间的逻辑复制循环问题。
+
+------------------------------
 ```
 
 系统将直接把问题发送给LLM，不经过知识库检索。这有助于对比RAG系统的效果。
+
 
 ## RAG技术总结 (待补充)
 此部分将根据后续对RAG相关论文和资料的研究进行补充，主要包括：
@@ -191,3 +211,5 @@ PostgreSQL 16 中引入的参数是 **`slot_name`**，用于指定逻辑复制�
 - RAG技术的不同类别（例如：Naive RAG, Advanced RAG, Modular RAG）。
 - RAG如何帮助LLM克服局限（如幻觉、知识过时）。
 - RAG面临的挑战与未来发展方向。 
+
+- 国际化课程 可能需要改成英文
