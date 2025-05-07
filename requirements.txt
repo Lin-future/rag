@@ -1,0 +1,17 @@
+langchain
+langchain-community
+langchain-openai # 用于通过类似OpenAI的接口调用DeepSeek, 如果DeepSeek API兼容
+sentence-transformers
+faiss-cpu
+requests
+python-dotenv
+unstructured # 包含多种文档加载器的依赖，如 .txt, .md
+pypdf # 用于加载 .pdf 文件
+markdown # 新增：用于解析 .md 文件，是unstructured处理markdown的依赖
+nltk # 新增：unstructured 的一些功能（如文本分割）依赖nltk及其资源
+
+# 注意：根据您实际使用的文档类型和sentence-transformers模型的具体需求，
+# 可能需要额外安装一些依赖，例如：
+# tiktoken (某些 text_splitter 或 LLM 可能需要)
+# beautifulsoup4 (如果使用 WebBaseLoader 或类似工具)
+# 其他特定于文档格式的库 (如 python-pptx, python-docx 等) 
